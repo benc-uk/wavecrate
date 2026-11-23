@@ -145,6 +145,113 @@ The application and JUCE modules use the static MSVC runtime: /MT in Release and
 runtime installer. Windows system DLLs are still required. Confirm the final
 release dependencies on a clean machine before distributing it.
 
+### What was installed on the development machine
+
+The user installed **Visual Studio Build Tools 2022**, with the **Desktop
+development with C++** workload and its recommended components, on 21 November
+2026. This is the command-line Build Tools product, not the Visual Studio IDE.
+The installed tools were inspected on 23 November 2026:
+
+| Component | Installed version | How it was supplied |
+| --- | --- | --- |
+| Visual Studio Build Tools 2022 | 17.14.45 (installation build 17.14.37906.3) | WinGet package Microsoft.VisualStudio.2022.BuildTools |
+| MSVC v143 x64/x86 toolset | 14.44.35207 toolset directory; cl reports 19.44.35230 | C++ workload |
+| Windows 11 SDK | 10.0.26100.0 headers/libraries directory; rc.exe and mt.exe report 10.0.26100.9457 | C++ workload, serviced SDK |
+| CMake | 3.31.6-msvc6 | Bundled C++ CMake tools for Windows |
+| Ninja | 1.12.1 | Bundled C++ CMake tools for Windows |
+| Git for Windows | 2.56.1.windows.1 when inspected | Already present, not installed for WaveCrate |
+| PowerShell | 7.6.10 when inspected | Already present; the helper also supports Windows PowerShell |
+
+Build Tools is installed under:
+
+```text
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+```
+
+Compiler tools are under its `VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64` directory.
+CMake and Ninja are under its `Common7\IDE\CommonExtensions\Microsoft\CMake`
+directory. Windows SDK headers, libraries and tools are under:
+
+```text
+C:\Program Files (x86)\Windows Kits\10
+```
+
+The key installed workload/component IDs are:
+
+```text
+Microsoft.VisualStudio.Workload.VCTools
+Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+Microsoft.VisualStudio.Component.Windows11SDK.26100
+Microsoft.VisualStudio.Component.VC.CMake.Project
+```
+
+The workload also selected MSBuild, C++ core build/desktop components, the Windows
+Universal CRT, the Visual C++ Redistributable, AddressSanitizer, testing tools,
+vcpkg, Roslyn compilers and text-templating support. These are installer-supplied
+development components; WaveCrate does not use all of them. In particular, this
+build uses Ninja rather than MSBuild and does not use vcpkg or Roslyn. Their
+presence does not make the application a .NET app or add installation requirements
+for its users.
+
+**JUCE is not installed system-wide.** CMake downloads JUCE 9.0.5, pinned to commit
+`d60b7a78030661574a615b586d9325ba7a7fa7dd`, into
+`out\build\<preset>\_deps\juce-src` and builds it with the application.
+No Projucer, VST SDK, separate JUCE installer, SQLite or libzip installation is
+required by the current build. Intelligent Terminal, Copilot, Node.js and Python
+are not build prerequisites.
+
+### Reproduce the setup on another Windows x64 machine
+
+Open **PowerShell as administrator** on the new machine and run:
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --source winget `
+    --override "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+This repeats the workload selection used here, including its recommended
+components. It is not the smallest possible installation. If selecting components
+manually, use the required-component table above. CMake and Ninja come with the
+C++ CMake tools component; there is no need to install them separately.
+
+The command selects the current servicing release of the **2022 Build Tools**
+package. It does not pin every tool to the version snapshot above. Those versions
+record the working setup, not an exact-version requirement for WaveCrate.
+
+Let installation finish and restart Windows if the installer requests it. On the
+original machine the SDK stage alone took about 12 minutes, so an unmoving
+progress indicator did not mean installation had stopped.
+
+Copy or clone this repository onto the new machine. Git is only needed if using
+Git to obtain/manage the source. Do **not** copy `out` from the old machine:
+CMake caches contain machine-specific paths. The first build needs internet access
+to download the pinned JUCE source.
+
+Then use a normal, non-administrator PowerShell window:
+
+```powershell
+Set-Location D:\personal\wavecrate  # Replace with the new checkout location.
+.\scripts\build.ps1
+.\scripts\build.ps1 -Configuration Release
+```
+
+The build helper loads the installed x64 tools automatically in a child process.
+You do not need to launch Visual Studio, edit the system PATH, or use an
+administrator shell for builds. Output paths and launch commands are below.
+
+If setup fails:
+
+- **WinGet says already installed, but tools are missing:** a partial Build Tools
+  installation can still be registered. Open Visual Studio Installer and resume
+  or modify **Build Tools 2022**, ensuring the C++ workload and its recommended
+  components are selected. Repeating WinGet install does not necessarily complete
+  missing components.
+- **Exit code 5007 / passive mode requires elevation:** rerun installation from
+  an administrator PowerShell window.
+- **build.ps1 reports missing tools:** ensure the C++ compiler, SDK and CMake
+  component installation completed. Use the current repository script, which
+  includes automatic environment loading and the exit-code discovery fix.
+
 ## Build
 
 From an ordinary PowerShell window:
